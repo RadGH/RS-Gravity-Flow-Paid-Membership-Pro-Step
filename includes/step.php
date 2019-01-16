@@ -19,31 +19,8 @@ function gf_pmp_register_membership_step() {
 		
 		// is the step complete?
 		public function is_complete() {
-			$user_id = get_current_user_id();
-			
-			$current_level = pmpro_getMembershipLevelForUser( $user_id );
-			$workflow_entry = $this->get_entry();
-			
-			if ( !$workflow_entry ) return false;
-			
-			$Gravity_Flow_API = new Gravity_Flow_API( $workflow_entry['form_id'] );
-			
-			$step = $Gravity_Flow_API->get_current_step( $workflow_entry );
-			
-			if ( $step && $step->get_type() == 'pmp_register_membership' ) {
-				$new_only = $step->get_setting('pmp_new_memberships_only');
-				
-				// if only new memberships count
-				if ( $new_only ) {
-					$start_date = strtotime( $current_level->startdate );
-					$entry_date = strtotime( $workflow_entry->date_created );
-					
-					// Abort if the membership was started before the entry was created.
-					if ( $start_date < $entry_date ) return false;
-				}
-				
-				return true;
-			}
+			$current_level = pmpro_getMembershipLevelForUser( get_current_user_id() );
+			if ( !empty($current_level) ) return true;
 			
 			return false;
 		}
@@ -69,14 +46,12 @@ function gf_pmp_register_membership_step() {
 				'title'  => 'Event Payment',
 				'fields' => array(
 					array(
-						'type'     => 'radio',
-						'name'     => 'pmp_new_memberships_only',
-						'label'    => 'New memberships only',
-						'horizontal' => false,
-						'choices' => array(
-							array( 'label' => 'Only new memberships qualify (started after the workflow was created)', 'value' => '1' ),
-							array( 'label' => 'New or existing memberships will qualify.', 'value' => '0' ),
-						)
+						'label'    => 'Details',
+						'name'     => 'gfpmp_message',
+						'type'     => 'gfpmp_step_message',
+						'callback'  => function() {
+							echo '<p>This step will be completed when the user becomes a member of any level.</p>';
+						}
 					),
 				),
 			);
@@ -92,7 +67,7 @@ function gf_pmp_register_membership_step() {
 				esc_html($this->get_status())
 			);
 			
-			echo '<p>This step will be completed once the user pays and registers to become a member.</p>';
+			echo '<p>This step will be completed when the user becomes a member of any level.</p>';
 		}
 	}
 	
@@ -106,30 +81,17 @@ if ( did_action( 'gravityflow_loaded' ) ) {
 }
 
 
-//
+// When changing level, trigger the step
 function gf_pmp_on_membership_change_check_step( $level_id, $user_id, $cancel_level ) {
-	$current_level = pmpro_getLevel( $level_id );
 	$workflow_id = (int) get_user_meta( $user_id, 'Workflow', true );
 	$workflow_entry = GFAPI::get_entry($workflow_id);
-	
 	if ( !$workflow_entry ) return;
 	
+	// Complete the step
 	$Gravity_Flow_API = new Gravity_Flow_API( $workflow_entry['form_id'] );
-	
 	$step = $Gravity_Flow_API->get_current_step( $workflow_entry );
 	
 	if ( $step && $step->get_type() == 'pmp_register_membership' ) {
-		$new_only = $step->get_setting('pmp_new_memberships_only');
-		
-		// if only new memberships count
-		if ( $new_only ) {
-			$start_date = strtotime( $current_level->startdate );
-			$entry_date = strtotime( $workflow_entry->date_created );
-			
-			// Abort if the membership was started before the entry was created.
-			if ( $start_date < $entry_date ) return;
-		}
-		
 		$step->end();
 		$Gravity_Flow_API->process_workflow( $workflow_entry['id'] );
 	}
